@@ -1,0 +1,705 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform:
+  - c8-cfn-patch
+  - AWS::Serverless-2016-10-31
+Description: unstruct-backend-v2
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: nodejs22.x
+    MemorySize: 512
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        DYNAMODB_TABLE: !Ref UnstructTable
+        S3_BUCKET: !Ref FileStorageBucket
+
+Resources:
+  # DynamoDB Table with new GSI structure
+  UnstructTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: GSI2
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: GSI3
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # S3 Bucket for file storage
+  FileStorageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3000
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # SQS for extraction processing
+  ExtractionDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: extraction-dlq
+
+  ExtractionQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: extraction-queue
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ExtractionDLQ.Arn
+        maxReceiveCount: 5
+
+  # SQS for synthesis job processing
+  SynthesisDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: synthesis-dlq
+
+  SynthesisQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: synthesis-queue
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SynthesisDLQ.Arn
+        maxReceiveCount: 3
+
+  # User Management
+  UserHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/user/api/user.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /users/{userId}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPost:
+          Type: Api
+          Properties:
+            Path: /users
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  # Workspace Management
+  WorkspaceHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/workspace/api/workspace.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /workspaces/{workspaceId}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPost:
+          Type: Api
+          Properties:
+            Path: /workspaces
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPut:
+          Type: Api
+          Properties:
+            Path: /workspaces/{workspaceId}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuth
+        ApiDelete:
+          Type: Api
+          Properties:
+            Path: /workspaces/{workspaceId}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  ListWorkspaces:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/workspace/api/list-workspaces.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /workspaces
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  # File Management
+  FileHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/file/api/file.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+        - S3CrudPolicy:
+            BucketName: !Ref FileStorageBucket
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref FileStorageBucket
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /workspaces/{workspaceId}/files/{fileId}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPost:
+          Type: Api
+          Properties:
+            Path: /workspaces/{workspaceId}/files
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPut:
+          Type: Api
+          Properties:
+            Path: /workspaces/{workspaceId}/files/{fileId}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuth
+        ApiDelete:
+          Type: Api
+          Properties:
+            Path: /workspaces/{workspaceId}/files/{fileId}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  ListFiles:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/file/api/list-files.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /workspaces/{workspaceId}/files
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  GetPresignedUrl:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/file/api/get-presigned-url.handler
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref FileStorageBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref FileStorageBucket
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /files/get-presigned-url
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  # Schema Management
+  SchemaHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/schema/api/schema.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /schemas/{schemaId}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPost:
+          Type: Api
+          Properties:
+            Path: /schemas
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPut:
+          Type: Api
+          Properties:
+            Path: /schemas/{schemaId}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuth
+        ApiDelete:
+          Type: Api
+          Properties:
+            Path: /schemas/{schemaId}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  ListSchemas:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/schema/api/list-schemas.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /schemas
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  # Extraction Management
+  ExtractionHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/extraction/api/extraction.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt ExtractionQueue.QueueName
+      Environment:
+        Variables:
+          EXTRACTION_QUEUE_URL: !Ref ExtractionQueue
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /extractions/{extractionId}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPost:
+          Type: Api
+          Properties:
+            Path: /extractions
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPut:
+          Type: Api
+          Properties:
+            Path: /extractions/{extractionId}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuth
+        ApiDelete:
+          Type: Api
+          Properties:
+            Path: /extractions/{extractionId}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  ListExtractions:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/extraction/api/list-extractions.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /workspaces/{workspaceId}/extractions
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  ProcessExtraction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/extraction/api/process-extraction.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+        - S3CrudPolicy:
+            BucketName: !Ref FileStorageBucket
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref FileStorageBucket
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ExtractionQueue.Arn
+            BatchSize: 10
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  # Record Management
+  RecordHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/extraction/api/record.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /extractions/{extractionId}/records/{recordId}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPost:
+          Type: Api
+          Properties:
+            Path: /extractions/{extractionId}/records
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPut:
+          Type: Api
+          Properties:
+            Path: /extractions/{extractionId}/records/{recordId}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuth
+        ApiDelete:
+          Type: Api
+          Properties:
+            Path: /extractions/{extractionId}/records/{recordId}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  ListRecords:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/extraction/api/list-records.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /extractions/{extractionId}/records
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  BulkUpdateRecords:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/extraction/api/bulk-update-records.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /extractions/{extractionId}/records/bulk-update
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  # Product Management
+  ProductHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/product/api/product.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /products/{productId}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPost:
+          Type: Api
+          Properties:
+            Path: /products
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPut:
+          Type: Api
+          Properties:
+            Path: /products/{productId}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuth
+        ApiDelete:
+          Type: Api
+          Properties:
+            Path: /products/{productId}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  ListProducts:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/product/api/list-products.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /workspaces/{workspaceId}/products
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  # Synthesis Job Management
+  SynthesisJobHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/product/api/synthesis-job.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt SynthesisQueue.QueueName
+      Environment:
+        Variables:
+          SYNTHESIS_QUEUE_URL: !Ref SynthesisQueue
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /synthesis-jobs/{jobId}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPost:
+          Type: Api
+          Properties:
+            Path: /synthesis-jobs
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+        ApiPut:
+          Type: Api
+          Properties:
+            Path: /synthesis-jobs/{jobId}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuth
+        ApiDelete:
+          Type: Api
+          Properties:
+            Path: /synthesis-jobs/{jobId}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  ListSynthesisJobs:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/product/api/list-synthesis-jobs.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /workspaces/{workspaceId}/synthesis-jobs
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+  ProcessSynthesisJob:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/features/product/api/process-synthesis-job.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UnstructTable
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt SynthesisQueue.Arn
+            BatchSize: 5
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Sourcemap: true
+
+Outputs:
+  ApiGatewayEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiEndpoint"
+
+  DynamoDBTableName:
+    Description: DynamoDB table name
+    Value: !Ref UnstructTable
+    Export:
+      Name: !Sub "${AWS::StackName}-DynamoDBTable"
+
+  S3BucketName:
+    Description: S3 bucket name for file storage
+    Value: !Ref FileStorageBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-S3Bucket"
