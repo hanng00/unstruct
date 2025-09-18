@@ -1,5 +1,8 @@
-export const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-  "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-};
+export function withCors(headers: Record<string, string> = {}) {
+  return {
+    ...headers,
+    "Access-Control-Allow-Headers": "*",
+    "Access-Control-Allow-Methods": "*",
+    "Access-Control-Allow-Origin": "*",
+  };
+}

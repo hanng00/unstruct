@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { Loader } from "@/components/loader";
 import { useRouter } from "next/navigation";
-import { Loader } from "@/components/Loader";
+import { useEffect } from "react";
 import { useAuth } from "../hooks/use-auth";
 
 interface ProtectedRouteProps {

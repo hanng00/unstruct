@@ -29,4 +29,4 @@ export const getCognitoUserPoolClientId = (): string => {
   return id;
 };
 
-export const REDIRECT_AFTER_SIGN_IN = "/tabular";
+export const REDIRECT_AFTER_SIGN_IN = "/workspaces";

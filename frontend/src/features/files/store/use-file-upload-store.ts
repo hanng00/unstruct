@@ -6,6 +6,7 @@ type FileUploadState = {
   isModalOpen: boolean;
   queueFiles: (files: File[]) => void;
   updateItem: (clientId: string, update: Partial<FileUpload>) => void;
+  removeIdleUploads: () => void;
   clear: () => void;
   openModal: () => void;
   closeModal: () => void;
@@ -28,6 +29,10 @@ export const useFileUploadStore = create<FileUploadState>((set) => ({
       uploads: state.uploads.map((u) => (u.clientId === clientId ? { ...u, ...update } : u)),
     }));
   },
+  removeIdleUploads: () =>
+    set((state) => ({
+      uploads: state.uploads.filter((u) => u.status !== "idle"),
+    })),
   clear: () => set({ uploads: [] }),
   openModal: () => set({ isModalOpen: true }),
   closeModal: () => set({ isModalOpen: false }),

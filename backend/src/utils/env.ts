@@ -1,7 +1,7 @@
-export function getEnvOrThrow(key: string): string {
-  const value = process.env[key];
+export const getEnvOrThrow = (env: string) => {
+  const value = process.env[env];
   if (!value) {
-    throw new Error(`Environment variable ${key} is not set`);
+    throw new Error(`Environment variable ${env} is not set`);
   }
   return value;
-}
+};

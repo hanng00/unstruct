@@ -30,7 +30,7 @@
   --chart-5: oklch(0.92 0.09 182);
   --chart-6: oklch(0.98 0.09 182);
   --chart-other: oklch(0.45 0 0);
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -201,4 +201,46 @@
     font-size: var(--text-3xl);
     line-height: var(--tw-leading, var(--text-3xl--line-height));
   }
+}
+
+/* AG Grid Custom Styles for new Theming API */
+.ag-theme-quartz {
+  --ag-background-color: hsl(var(--background));
+  --ag-foreground-color: hsl(var(--foreground));
+  --ag-border-color: hsl(var(--border));
+  --ag-header-background-color: hsl(var(--background));
+  --ag-header-foreground-color: hsl(var(--foreground));
+  --ag-odd-row-background-color: hsl(var(--background));
+  --ag-row-hover-color: hsl(var(--muted));
+  --ag-selected-row-background-color: hsl(var(--accent));
+  --ag-font-size: var(--text-xs);
+  --ag-font-family: inherit;
+  --ag-border-radius: 0;
+}
+
+.ag-theme-quartz .ag-header {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.ag-theme-quartz .ag-row {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.ag-theme-quartz .ag-cell {
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+}
+
+.ag-theme-quartz .ag-header-cell {
+  padding: 4px 8px;
+  font-weight: 500;
+}
+
+.ag-theme-quartz .file-row {
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+.ag-theme-quartz .product-row {
+  background-color: hsl(var(--background));
 }

@@ -1,12 +1,33 @@
-import { APIGatewayProxyResult } from "aws-lambda";
+import { withCors } from "./cors";
 
-export function createResponse(statusCode: number, body: any, headers?: Record<string, string>): APIGatewayProxyResult {
+export const unauthorized = () => {
   return {
-    statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      ...headers,
-    },
-    body: JSON.stringify(body),
+    statusCode: 401,
+    body: JSON.stringify({ error: "Unauthorized" }),
+    headers: withCors({ "Content-Type": "application/json" }),
   };
-}
+};
+
+export const badRequest = (error: string) => {
+  return {
+    statusCode: 400,
+    body: JSON.stringify({ error }),
+    headers: withCors({ "Content-Type": "application/json" }),
+  };
+};
+
+export const notFound = (error: string) => {
+  return {
+    statusCode: 404,
+    body: JSON.stringify({ error }),
+    headers: withCors({ "Content-Type": "application/json" }),
+  };
+};
+
+export const success = (data: any) => {
+  return {
+    statusCode: 200,
+    body: JSON.stringify(data),
+    headers: withCors({ "Content-Type": "application/json" }),
+  };
+};

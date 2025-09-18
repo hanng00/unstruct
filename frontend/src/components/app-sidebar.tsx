@@ -14,13 +14,19 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/features/auth";
-import { FileText, Folder, Infinity } from "lucide-react";
+import { Database, Folder, Infinity, Orbit } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const sidebarItems = [
-  { id: "tabular", icon: FileText, label: "Tabular View", path: "/tabular" },
+  { id: "workspaces", icon: Orbit, label: "Workspaces", path: "/workspaces" },
   { id: "files", icon: Folder, label: "Files", path: "/files" },
+  {
+    id: "data-models",
+    icon: Database,
+    label: "Data Models",
+    path: "/data-models",
+  },
 ];
 
 export function AppSidebar() {
@@ -54,7 +60,7 @@ export function AppSidebar() {
                       tooltip={item.label}
                     >
                       <Link href={item.path}>
-                        <Icon className="h-4 w-4" />
+                        <Icon className="size-4" />
                         <span>{item.label}</span>
                       </Link>
                     </SidebarMenuButton>

@@ -1,16 +1,31 @@
 "use client";
 
 import { batchExecutor } from "@/lib/batch-executor";
-import { useCallback } from "react";
-import { useCreateTabularViewWithFiles } from "../../tabular/hooks/use-create-tabular-view-with-files";
+import { useCallback, useEffect, useRef } from "react";
 import { useGeneratePresignedUrl } from "../api/get-presigned-url";
-import { useUpdateFileUpload } from "../api/update-file-upload";
-import { useUploadFile } from "../api/upload-files";
+import { useUpdateFile } from "../api/update-file";
+import { useUploadFile } from "../api/upload-file-blob";
 import { useFileUploadStore } from "../store/use-file-upload-store";
 
-export const useFileActions = () => {
+interface Props {
+  onAllUploaded?: () => Promise<void>;
+}
+export const useFileActions = ({ onAllUploaded }: Props) => {
   const { uploads, updateItem } = useFileUploadStore();
-  const { createViewWithFiles } = useCreateTabularViewWithFiles();
+
+  const hasCompletedRef = useRef(false);
+  useEffect(() => {
+    const hasUploads = Array.isArray(uploads) && uploads.length > 0;
+    const allComplete = hasUploads && uploads.every((u) => u.status === "completed");
+
+    if (allComplete && !hasCompletedRef.current) {
+      hasCompletedRef.current = true;
+      void onAllUploaded?.();
+    } else if (!allComplete) {
+      // Reset when new uploads are queued or any upload is not completed yet
+      hasCompletedRef.current = false;
+    }
+  }, [uploads, onAllUploaded]);
 
   const {
     mutateAsync: generatePresignedUrlFn,
@@ -26,7 +41,7 @@ export const useFileActions = () => {
     mutateAsync: updateFileUploadFn,
     isPending: isUpdatingFile,
     error: updateError,
-  } = useUpdateFileUpload();
+  } = useUpdateFile();
 
   const uploadSingle = useCallback(
     async (clientId: string, file: File): Promise<string> => {
@@ -53,7 +68,7 @@ export const useFileActions = () => {
       });
 
       updateItem(clientId, { status: "completed", progress: 100 });
-      
+
       return presigned.fileId;
     },
     [generatePresignedUrlFn, updateFileUploadFn, uploadFileFn, updateItem]
@@ -83,43 +98,8 @@ export const useFileActions = () => {
     [uploadSingle, updateItem, uploads]
   );
 
-  const uploadFilesAndCreateView = useCallback(
-    async (options?: { concurrency?: number; viewName?: string }) => {
-      const concurrency = options?.concurrency ?? 5;
-      const viewName = options?.viewName;
-      const idle = uploads.filter((u) => u.status === "idle");
-      const completedFileIds: string[] = [];
-
-      // Upload all files first
-      await batchExecutor(
-        idle,
-        async (item) => {
-          try {
-            const fileId = await uploadSingle(item.clientId, item.file);
-            completedFileIds.push(fileId);
-          } catch (err) {
-            updateItem(item.clientId, {
-              status: "failed",
-              error: err instanceof Error ? err.message : "Upload failed",
-            });
-            throw err;
-          }
-        },
-        { batchSize: concurrency }
-      );
-
-      // Create tabular view with uploaded files
-      if (completedFileIds.length > 0) {
-        await createViewWithFiles(completedFileIds, viewName);
-      }
-    },
-    [uploadSingle, updateItem, uploads, createViewWithFiles]
-  );
-
   const isPending = isGeneratingPresignedUrl || isUploading || isUpdatingFile;
   const error = presignedUrlError ?? uploadError ?? updateError;
 
-  return { startUploads, uploadFilesAndCreateView, isPending, error };
+  return { startUploads, isPending, error };
 };
-
-

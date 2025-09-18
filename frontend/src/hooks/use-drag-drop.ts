@@ -50,6 +50,7 @@ export function useDragDrop({ onFilesDropped }: UseDragDropOptions = {}) {
         setDroppedFiles(files);
         setShowModal(true);
         onFilesDropped?.(files);
+        setIsDragOver(false);
       }
     },
     [onFilesDropped]
