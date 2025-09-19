@@ -33,7 +33,7 @@ describe("withEvidence", () => {
         rationale: {
           type: ["string", "null"],
           description:
-            "Thourough motivation for how this value were derived, including citations if applicable.",
+            "Thourough motivation for how this value was derived, including citations if applicable.",
         },
       },
       required: ["answer", "rationale"],
@@ -50,7 +50,7 @@ describe("withEvidence", () => {
         rationale: {
           type: ["string", "null"],
           description:
-            "Thourough motivation for how this value were derived, including citations if applicable.",
+            "Thourough motivation for how this value was derived, including citations if applicable.",
         },
       },
       required: ["answer", "rationale"],
@@ -83,7 +83,7 @@ describe("withEvidence", () => {
         rationale: {
           type: ["string", "null"],
           description:
-            "Thourough motivation for how this value were derived, including citations if applicable.",
+            "Thourough motivation for how this value was derived, including citations if applicable.",
         },
       },
       required: ["answer", "rationale"],

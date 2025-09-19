@@ -9,37 +9,22 @@ import { HtmlLoader } from "../loaders/html-loader";
 import { PdfLoader } from "../loaders/pdf-loader";
 import { TextLikeLoader } from "../loaders/text-loader";
 import { DDBExtractionRepository } from "../repositories/extraction-repository";
-import { StructuredDataExtractor } from "./extractor";
+import { FileLoader } from "./file-loader";
 import { BasicExtractionAgent } from "./llm/basic-agent";
 import { PivotedExtractionAgent } from "./llm/pivoted-extraction-agent";
 import { RunExtractionUseCase } from "./run-extraction.use-case";
-
-export const createBasicExtractor = (): StructuredDataExtractor => {
-  return new StructuredDataExtractor(
-    new S3Service(),
-    new DDBFileRepository(),
-    new DataModelRepository(),
-    new BasicExtractionAgent(),
-    [
-      new PdfLoader(),
-      new DocxLoader(),
-      new ExcelLoader(),
-      new EmlLoader(),
-      new HtmlLoader(),
-      new TextLikeLoader(),
-      new FallbackLoader(),
-    ]
-  );
-};
+import { StructuredDataExtractor } from "./structured-data-extractor";
 
 export const createRunExtractionUseCase = (): RunExtractionUseCase => {
-  const basicExtractor = createBasicExtractor();
-  const pivotedExtractor = new StructuredDataExtractor(
-    new S3Service(),
-    new DDBFileRepository(),
+  const basicExtractor = new StructuredDataExtractor(
+    new BasicExtractionAgent(),
+    new PivotedExtractionAgent()
+  );
+
+  return new RunExtractionUseCase(
+    new DDBExtractionRepository(),
     new DataModelRepository(),
-    new PivotedExtractionAgent(),
-    [
+    new FileLoader(new S3Service(), new DDBFileRepository(), [
       new PdfLoader(),
       new DocxLoader(),
       new ExcelLoader(),
@@ -47,7 +32,7 @@ export const createRunExtractionUseCase = (): RunExtractionUseCase => {
       new HtmlLoader(),
       new TextLikeLoader(),
       new FallbackLoader(),
-    ]
+    ]),
+    basicExtractor
   );
-  return new RunExtractionUseCase(new DDBExtractionRepository(), basicExtractor, pivotedExtractor);
 };

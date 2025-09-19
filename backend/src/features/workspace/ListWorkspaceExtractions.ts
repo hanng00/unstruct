@@ -1,12 +1,31 @@
-import { withCors } from "@/utils/cors";
-import { notFound, unauthorized } from "@/utils/response";
+import {
+  internalServerError,
+  notFound,
+  success,
+  unauthorized,
+} from "@/utils/response";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { z } from "zod";
 import { getUserFromEvent } from "../auth";
+import {
+  ExtractionRecordSchema,
+  ExtractionSchema,
+} from "../extractions/models/extraction";
 import { DDBExtractionRepository } from "../extractions/repositories/extraction-repository";
+import { FileReferenceSchema } from "../files/models/file-reference";
 import { WorkspaceRepository } from "./repositories/workspace-repository";
 
 const wsRepo = new WorkspaceRepository();
 const extRepo = new DDBExtractionRepository();
+
+const ResponseSchema = z
+  .object({
+    fileId: z.string(),
+    file: FileReferenceSchema,
+    extraction: ExtractionSchema.nullable(),
+    records: ExtractionRecordSchema.array(),
+  })
+  .array();
 
 export const handler = async (
   event: APIGatewayProxyEvent
@@ -18,38 +37,44 @@ export const handler = async (
     const id = event.pathParameters?.id as string;
 
     const wsRes = await wsRepo.get(id);
-    if (!wsRes.success || wsRes.workspace.userId !== user.id)
-      return notFound(`Workspace not found`);
+    if (!wsRes.success) return notFound("Workspace not found");
 
+    if (wsRes.workspace.userId !== user.id) return unauthorized();
+
+    // List files in workspace
     const workspace = wsRes.workspace;
     const filesRes = await wsRepo.listWorkspaceFiles(id, 100);
     const files = filesRes.files || [];
 
+    // List extractions for each file - newest first
     const rows = await Promise.all(
-      files.map(async (file: any) => {
+      files.map(async (file) => {
         const extractions = await extRepo.getExtractionsByFile(file.id);
-        const forModel = extractions.filter(
-          (e) => e.dataModelId === workspace.dataModelId
-        );
         const latest =
-          forModel.sort(
-            (a, b) =>
-              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          )[0] || null;
-        return { fileId: file.id, file, extraction: latest };
+          extractions
+            .filter((e) => e.dataModelId === workspace.dataModelId)
+            .sort(
+              (a, b) =>
+                new Date(b.updatedAt).getTime() -
+                new Date(a.updatedAt).getTime()
+            )[0] || null;
+
+        const records = latest
+          ? await extRepo.getExtractionRecords(latest.id)
+          : [];
+
+        return { fileId: file.id, file, extraction: latest, records };
       })
     );
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ rows }),
-      headers: withCors({ "Content-Type": "application/json" }),
-    };
+    console.log(
+      "Attempting to validate response",
+      JSON.stringify(rows, null, 2)
+    );
+
+    const validatedResponse = ResponseSchema.parse(rows);
+    return success({ rows: validatedResponse });
   } catch (e: any) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: e.message }),
-      headers: withCors({ "Content-Type": "application/json" }),
-    };
+    return internalServerError(e);
   }
 };

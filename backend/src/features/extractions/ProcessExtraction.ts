@@ -11,7 +11,6 @@ import { createRunExtractionUseCase } from "./services/extractor.factory";
 
 const processor = new BatchProcessor(EventType.DynamoDBStreams);
 const runService = createRunExtractionUseCase();
-
 interface ExtractionItem {
   PK: string;
   SK: string;

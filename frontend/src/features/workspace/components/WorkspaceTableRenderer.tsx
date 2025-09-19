@@ -19,7 +19,7 @@ export type TableData<TData> = {
 
 export type DataTableProps<TData extends object> = TableData<TData>;
 
-export const WorkspaceTableSimplified = <TData extends object>({
+export const WorkspaceTableRenderer = <TData extends object>({
   columns,
   rows,
 }: DataTableProps<TData>) => {

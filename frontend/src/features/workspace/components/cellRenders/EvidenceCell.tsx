@@ -63,7 +63,7 @@ export function EvidenceCell({ value, className = "" }: EvidenceCellProps) {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild className="z-10">
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             className="absolute right-0 bottom-0 opacity-0 group-hover:opacity-100 transition-opacity text-xs"
             onClick={(e) => {

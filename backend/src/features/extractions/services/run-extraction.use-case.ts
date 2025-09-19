@@ -1,18 +1,29 @@
+import { IDataModelRepository } from "@/features/data-model/repositories/data-model-repository";
+import { schemaDefinitionToJsonSchema } from "@/features/data-model/services/field-to-jsonschema";
 import { IExtractionRepository } from "@/features/extractions/repositories/extraction-repository";
-import { StructuredDataExtractor } from "./extractor";
+import { withEvidence } from "../models/evidence";
+import { FileLoader } from "./file-loader";
+import { StructuredDataExtractor } from "./structured-data-extractor";
 
 export class RunExtractionUseCase {
   constructor(
-    private readonly extractionRepository: IExtractionRepository,
-    private readonly basicExtractor: StructuredDataExtractor,
-    private readonly pivotedExtractor: StructuredDataExtractor
+    private readonly extractionRepo: IExtractionRepository,
+    private readonly dataModelRepo: IDataModelRepository,
+    private readonly fileLoader: FileLoader,
+    private readonly extractor: StructuredDataExtractor
   ) {}
 
   async execute(extractionId: string): Promise<void> {
-    const extraction = await this.extractionRepository.getExtraction(extractionId);
+    const extraction = await this.extractionRepo.getExtraction(extractionId);
     if (!extraction) return;
 
-    const transitioned = await this.extractionRepository.tryTransition(
+    const dataModel = await this.dataModelRepo.getDataModel(
+      extraction.userId,
+      extraction.dataModelId
+    );
+    if (!dataModel) return;
+
+    const transitioned = await this.extractionRepo.tryTransition(
       extractionId,
       "queued",
       "processing"
@@ -20,29 +31,41 @@ export class RunExtractionUseCase {
     if (!transitioned) return;
 
     try {
-      const extractor = extraction.pivotOn
-        ? this.pivotedExtractor
-        : this.basicExtractor;
-
-      const data = await extractor.extract(
+      // 1) Load file content
+      const { content } = await this.fileLoader.load(
         extraction.userId,
-        extraction.fileId,
-        extraction.dataModelId,
+        extraction.fileId
+      );
+
+      // 2) Extract rows
+      const jsonSchema = schemaDefinitionToJsonSchema(dataModel.fields);
+      const jsonSchemaWithEvidence = withEvidence(jsonSchema);
+      const rows = await this.extractor.extractRows(
+        content,
+        jsonSchemaWithEvidence,
         extraction.pivotOn
       );
-      console.log("data", data);
 
-      await this.extractionRepository.finish(extractionId, {
-        status: "completed",
-        data,
-      });
+      // 3) For each extracted row, persist a record
+      await Promise.all(
+        rows.map((row, idx) =>
+          this.extractionRepo.putExtractionRecord({
+            id: crypto.randomUUID(),
+            extractionId: extraction.id,
+            rowNumber: idx + 1,
+            pivotKey: extraction.pivotOn,
+            fields: row,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+        )
+      );
+
+      // Mark extraction as finished
+      await this.extractionRepo.finish(extraction.id, { status: "completed" });
     } catch (e) {
-      await this.extractionRepository.finish(extractionId, {
-        status: "failed",
-      });
+      await this.extractionRepo.finish(extraction.id, { status: "failed" });
       throw e;
     }
   }
 }
-
-

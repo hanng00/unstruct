@@ -6,9 +6,11 @@ export type StructuredExtractionArgs = {
   pivotField?: string;
 };
 
+export type StructuredExtractionResult = {
+  data: Record<string, unknown>[];
+  raw?: string; // optional raw model output for debugging
+};
+
 export interface IStructuredExtractionLLM {
-  structuredExtraction(args: StructuredExtractionArgs): Promise<{
-    data: Record<string, unknown>;
-    raw?: string; // optional raw model output for debugging
-  }>;
+  structuredExtraction(args: StructuredExtractionArgs): Promise<StructuredExtractionResult>;
 }

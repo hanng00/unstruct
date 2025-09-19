@@ -1,14 +1,13 @@
+import { runWithConcurrencyLimit } from "@/utils/concurrency";
 import {
   Agent,
   Runner,
   getGlobalTraceProvider,
   withTrace,
 } from "@openai/agents";
-import { setupOpenAI } from "../../config/openai";
-
-import { runWithConcurrencyLimit } from "@/utils/concurrency";
 import { JSONSchema7 } from "json-schema";
 import { z } from "zod";
+import { setupOpenAI } from "../../config/openai";
 import { genericExtractionPrompt } from "./generic.prompt";
 import {
   IStructuredExtractionLLM,
@@ -20,9 +19,7 @@ setupOpenAI();
 export class PivotedExtractionAgent implements IStructuredExtractionLLM {
   concurrencyLimit = 20;
 
-  async structuredExtraction(
-    args: StructuredExtractionArgs
-  ): Promise<{ data: Record<string, unknown>; raw?: string }> {
+  async structuredExtraction(args: StructuredExtractionArgs) {
     return await withTrace(
       "PivotedExtractionAgent.structuredExtraction",
       async () => {
@@ -31,9 +28,7 @@ export class PivotedExtractionAgent implements IStructuredExtractionLLM {
     );
   }
 
-  async _structuredExtraction(
-    args: StructuredExtractionArgs
-  ): Promise<{ data: Record<string, unknown>; raw?: string }> {
+  private async _structuredExtraction(args: StructuredExtractionArgs) {
     const { content, schema, pivotField } = args;
 
     if (!pivotField)
@@ -43,28 +38,34 @@ export class PivotedExtractionAgent implements IStructuredExtractionLLM {
     if (!pivotFieldSchema)
       throw new Error(`Pivot field "${pivotField}" not found in schema`);
 
+    // 1) Extract pivot keys
     const pivotKeys = await this.extractPivotKeys(
       content,
       pivotField,
       pivotFieldSchema
     );
 
-    const results: Record<string, unknown> = {};
     const runner = new Runner();
 
+    // 2) Run extraction per pivot key concurrently
+    const rows: Record<string, unknown>[] = [];
     await runWithConcurrencyLimit(
       pivotKeys,
       this.concurrencyLimit,
       async (key) => {
-        const perKeyContent = `Focus on ${pivotField} = "${key}" in this document.\n\n${content}`;
+        const perKeyContent = `${content}\n\nFocus on ${pivotField} = "${key}"\n\n`;
         const agent = this.createAgent(schema);
         const res = await runner.run(agent, perKeyContent);
-        results[key] = res.finalOutput;
+
+        // 3) Flatten result into row-first format
+        const output = res.finalOutput as Record<string, unknown>;
+        rows.push(output);
       }
     );
 
     await getGlobalTraceProvider().forceFlush();
-    return { data: results };
+
+    return { data: rows };
   }
 
   private async extractPivotKeys(
