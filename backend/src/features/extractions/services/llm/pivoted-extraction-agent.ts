@@ -1,4 +1,3 @@
-import { DataModel } from "@/features/data-model/models/data-model";
 import {
   Agent,
   Runner,
@@ -8,6 +7,7 @@ import {
 import { setupOpenAI } from "../../config/openai";
 
 import { runWithConcurrencyLimit } from "@/utils/concurrency";
+import { JSONSchema7 } from "json-schema";
 import { z } from "zod";
 import { genericExtractionPrompt } from "./generic.prompt";
 import {
@@ -23,9 +23,12 @@ export class PivotedExtractionAgent implements IStructuredExtractionLLM {
   async structuredExtraction(
     args: StructuredExtractionArgs
   ): Promise<{ data: Record<string, unknown>; raw?: string }> {
-    return await withTrace("PivotedExtractionAgent.structuredExtraction", async () => {
-      return this._structuredExtraction(args);
-    });
+    return await withTrace(
+      "PivotedExtractionAgent.structuredExtraction",
+      async () => {
+        return this._structuredExtraction(args);
+      }
+    );
   }
 
   async _structuredExtraction(
@@ -89,7 +92,7 @@ export class PivotedExtractionAgent implements IStructuredExtractionLLM {
     return keys;
   }
 
-  private createAgent(outputSchema: DataModel["schemaJson"]) {
+  private createAgent(outputSchema: JSONSchema7) {
     if (!outputSchema.required) outputSchema.required = [];
 
     return new Agent({

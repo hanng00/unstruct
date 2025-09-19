@@ -3,27 +3,17 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import { Edit, Save, X } from "lucide-react";
 import { useState } from "react";
-import { DataModelSchemaJson } from "../schemas/datamodel";
-
-export type DataModel = {
-  id: string;
-  userId: string;
-  name: string;
-  version: number;
-  schemaJson: unknown;
-  createdAt: string;
-  updatedAt: string;
-};
+import { DataModel, Field } from "../schemas/datamodel";
+import { FieldEditor } from "./FieldEditor";
 
 type Props = {
   dataModel: DataModel;
   isEditing: boolean;
   onEdit: () => void;
   onCancel: () => void;
-  onUpdate: (id: string, schemaJson: DataModelSchemaJson) => void;
+  onUpdate: (id: string, fields: Field[]) => void;
   isUpdating?: boolean;
 };
 
@@ -35,17 +25,14 @@ export function DataModelCard({
   onUpdate,
   isUpdating,
 }: Props) {
-  const [schemaJsonText, setSchemaJsonText] = useState(
-    JSON.stringify(dataModel.schemaJson, null, 2)
-  );
+  const [fields, setFields] = useState(dataModel.fields);
 
   const handleSave = () => {
-    try {
-      const parsed = JSON.parse(schemaJsonText);
-      onUpdate(dataModel.id, parsed);
-    } catch (e) {
-      console.error("Invalid JSON", e);
-    }
+    onUpdate(dataModel.id, fields);
+  };
+
+  const handleFieldsChange = (newFields: Field[]) => {
+    setFields(newFields);
   };
 
   return (
@@ -71,15 +58,11 @@ export function DataModelCard({
       <CardContent>
         {isEditing && (
           <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Schema JSON</label>
-              <Textarea
-                value={schemaJsonText}
-                onChange={(e) => setSchemaJsonText(e.target.value)}
-                rows={8}
-                className="font-mono text-sm max-h-[400px]"
-              />
-            </div>
+            <FieldEditor
+              fields={fields}
+              onFieldsChange={handleFieldsChange}
+              isReadOnly={false}
+            />
             <div className="flex gap-2">
               <Button onClick={handleSave} disabled={!!isUpdating} size="sm">
                 <Save className="h-4 w-4 mr-2" />
@@ -97,9 +80,11 @@ export function DataModelCard({
             <div className="text-sm text-muted-foreground">
               Last updated: {formatDate(dataModel.updatedAt)}
             </div>
-            <pre className="bg-muted p-3 rounded-md text-sm overflow-auto max-h-[400px]">
-              {JSON.stringify(dataModel.schemaJson, null, 2)}
-            </pre>
+            <FieldEditor
+              fields={dataModel.fields}
+              onFieldsChange={() => {}} // No-op for read-only
+              isReadOnly={true}
+            />
           </div>
         )}
       </CardContent>

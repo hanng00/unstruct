@@ -1,5 +1,4 @@
-import { withCors } from "@/utils/cors";
-import { unauthorized } from "@/utils/response";
+import { created, internalServerError, unauthorized } from "@/utils/response";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { z } from "zod";
 import { getUserFromEvent } from "../auth";
@@ -28,16 +27,8 @@ export const handler = async (
       dataModelId: input.dataModelId,
     });
 
-    return {
-      statusCode: 201,
-      body: JSON.stringify({ workspace: ws }),
-      headers: withCors({ "Content-Type": "application/json" }),
-    };
+    return created({ workspace: ws });
   } catch (e: any) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: e.message }),
-      headers: withCors({ "Content-Type": "application/json" }),
-    };
+    return internalServerError(e);
   }
 };

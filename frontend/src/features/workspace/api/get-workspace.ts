@@ -21,8 +21,10 @@ const getWorkspace = async (id: string): Promise<Workspace> => {
   return data.workspace;
 };
 
-export const useGetWorkspace = (id: string) => {
-  return useQuery({ queryKey: ["workspace", id], queryFn: () => getWorkspace(id), enabled: Boolean(id) });
+export const useGetWorkspace = (id?: string) => {
+  return useQuery({
+    queryKey: ["workspace", id],
+    queryFn: () => getWorkspace(id ?? ""),
+    enabled: !!id,
+  });
 };
-
-

@@ -1,5 +1,5 @@
-import { DataModel } from "@/features/data-model/models/data-model";
 import { Agent, getGlobalTraceProvider, Runner } from "@openai/agents";
+import { JSONSchema7 } from "json-schema";
 import { setupOpenAI } from "../../config/openai";
 import { genericExtractionPrompt } from "./generic.prompt";
 import {
@@ -9,9 +9,7 @@ import {
 
 setupOpenAI();
 
-export class BasicExtractionAgent
-  implements IStructuredExtractionLLM
-{
+export class BasicExtractionAgent implements IStructuredExtractionLLM {
   async structuredExtraction<T>(
     args: StructuredExtractionArgs
   ): Promise<{ data: T; raw?: string }> {
@@ -37,7 +35,7 @@ export class BasicExtractionAgent
     };
   }
 
-  private createAgent(outputSchema: DataModel["schemaJson"]) {
+  private createAgent(outputSchema: JSONSchema7) {
     if (!outputSchema.required) outputSchema.required = [];
 
     return new Agent({

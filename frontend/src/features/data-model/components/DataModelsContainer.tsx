@@ -5,12 +5,13 @@ import { Loader } from "@/components/loader";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useCreateDataModel } from "../api/create-data-model";
 import { useListDataModels } from "../api/list-data-models";
 import { useUpdateDataModel } from "../api/update-data-model";
-import { CreateDataModelCard } from "../components/CreateDataModelCard";
-import { DataModelCard } from "../components/DataModelCard";
-import { DataModelSchemaJson } from "../schemas/datamodel";
+import { Field } from "../schemas/datamodel";
+import { CreateDataModelCard } from "./CreateDataModelCard";
+import { DataModelCard } from "./DataModelCard";
 
 export default function DataModelsContainer() {
   const { data: dataModels = [], isLoading } = useListDataModels();
@@ -22,25 +23,41 @@ export default function DataModelsContainer() {
 
   const handleCreate = async (input: {
     name: string;
-    schemaJson: DataModelSchemaJson;
+    fields: Field[];
   }) => {
     try {
       await createMutation.mutateAsync(input);
       setIsCreating(false);
+      toast.success("Data model created successfully");
     } catch (error) {
       console.error("Failed to create data model:", error);
+      toast.error("Failed to create data model", {
+        description: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   };
 
-  const handleUpdate = async (id: string, schemaJson: DataModelSchemaJson) => {
+  const handleUpdate = async (id: string, fields: Field[]) => {
     try {
       await updateMutation.mutateAsync({
         id,
-        schemaJson,
+        fields,
       });
       setEditingId(null);
+      toast.success("Data model updated successfully");
     } catch (error) {
       console.error("Failed to update data model:", error);
+      
+      // Check if it's a conflict error (duplicate field IDs)
+      if (error instanceof Error && error.message.includes("conflict")) {
+        toast.error("Field ID conflict", {
+          description: "Some field names result in duplicate IDs. Please choose different names."
+        });
+      } else {
+        toast.error("Failed to update data model", {
+          description: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
     }
   };
 

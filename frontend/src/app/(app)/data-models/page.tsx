@@ -1,6 +1,6 @@
 "use client";
 
-import DataModelsContainer from "@/features/data-model/section/DataModelsContainer";
+import DataModelsContainer from "@/features/data-model/components/DataModelsContainer";
 
 export const DataModelsPage = () => {
   return (

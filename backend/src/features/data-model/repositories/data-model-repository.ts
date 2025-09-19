@@ -5,16 +5,21 @@ import {
   PutCommand,
   QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { type DataModel, type DataModelSchemaJson } from "../models/data-model";
+import { DataModel } from "../models/data-model";
+import { Field } from "../models/field";
+
+type CreateDataModelNew = {
+  name: string;
+  userId: string;
+  description?: string;
+  fields: Field[];
+};
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
-type CreateDataModel = { name: string; schemaJson: DataModelSchemaJson };
 
 export interface IDataModelRepository {
-  createDataModel: (
-    input: CreateDataModel & { userId: string }
-  ) => Promise<DataModel>;
+  createDataModel: (input: CreateDataModelNew) => Promise<DataModel>;
   getDataModel: (userId: string, id: string) => Promise<DataModel | null>;
   updateDataModel: (
     userId: string,
@@ -27,16 +32,14 @@ export interface IDataModelRepository {
 export class DataModelRepository implements IDataModelRepository {
   private readonly tableName = getEnvOrThrow("DYNAMODB_TABLE");
 
-  async createDataModel(
-    input: CreateDataModel & { userId: string }
-  ): Promise<DataModel> {
+  async createDataModel(params: CreateDataModelNew): Promise<DataModel> {
     const now = new Date().toISOString();
     const dataModel: DataModel = {
       id: crypto.randomUUID(),
-      userId: input.userId,
-      name: input.name,
+      userId: params.userId,
+      name: params.name,
       version: 1,
-      schemaJson: input.schemaJson,
+      fields: params.fields,
       createdAt: now,
       updatedAt: now,
     };
@@ -45,7 +48,7 @@ export class DataModelRepository implements IDataModelRepository {
       new PutCommand({
         TableName: this.tableName,
         Item: {
-          PK: `USER#${input.userId}`,
+          PK: `USER#${params.userId}`,
           SK: `DM#${dataModel.id}`,
           dmData: dataModel,
           createdAt: now,

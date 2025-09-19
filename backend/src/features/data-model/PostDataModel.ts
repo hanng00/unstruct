@@ -1,14 +1,19 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { z } from "zod";
-import { withCors } from "../../utils/cors";
-import { unauthorized } from "../../utils/response";
+import {
+  conflict,
+  internalServerError,
+  success,
+  unauthorized
+} from "../../utils/response";
 import { getUserFromEvent } from "../auth";
-import { DataModelSchemaJsonSchema } from "./models/data-model";
+import { Field, FieldSchema } from "./models/field";
 import { DataModelRepository } from "./repositories/data-model-repository";
 
 const RequestSchema = z.object({
   name: z.string(),
-  schemaJson: DataModelSchemaJsonSchema,
+  description: z.string().optional(),
+  fields: FieldSchema.array(),
 });
 
 const repo = new DataModelRepository();
@@ -21,23 +26,24 @@ export const handler = async (
     if (!user) return unauthorized();
 
     const body = JSON.parse(event.body || "{}");
-    const input = RequestSchema.parse(body);
+    const validatedBody = RequestSchema.parse(body);
+
+    // Validate the field id's are unique
+    if (!hasUniqueFieldIds(validatedBody.fields))
+      return conflict("Field id's must be unique");
 
     const dataModel = await repo.createDataModel({
-      ...input,
+      ...validatedBody,
       userId: user.id,
     });
 
-    return {
-      statusCode: 201,
-      body: JSON.stringify({ dataModel }),
-      headers: withCors({ "Content-Type": "application/json" }),
-    };
+    return success({ dataModel });
   } catch (e: any) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: e.message }),
-      headers: withCors({ "Content-Type": "application/json" }),
-    };
+    return internalServerError(e);
   }
+};
+
+const hasUniqueFieldIds = (fields: Field[]) => {
+  const uniqueFieldIds = new Set(fields.map((f) => f.id));
+  return uniqueFieldIds.size === fields.length;
 };

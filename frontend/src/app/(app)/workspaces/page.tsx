@@ -32,8 +32,6 @@ export default function WorkspacePage() {
           <WorkspaceList />
         </div>
       </main>
-
-      {/* bottom spacer removed; dialog moved above list */}
     </div>
   );
 }

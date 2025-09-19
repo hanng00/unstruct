@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useGetDataModel } from "@/features/data-model/api/get-data-model";
 import {
   useListWorkspaceRows,
@@ -18,13 +19,13 @@ import { cn } from "@/lib/utils";
 import { ICellEditorParams, ValueGetterParams } from "ag-grid-community";
 import { ChevronRightIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { useGetWorkspace } from "../api/get-workspace";
 import { useRemoveFileFromWorkspace } from "../api/remove-file-from-workspace";
 import { useWorkspacePreview } from "../store/use-workspace-preview";
 import { useWorkspaceTableSettings } from "../store/use-workspace-table-settings";
 
 type Props = {
   workspaceId: string;
-  dataModelId: string;
 };
 
 type WorkspaceRowData = Record<string, unknown> & {
@@ -123,7 +124,7 @@ const FileWithToggle = ({
   return (
     <div className="flex items-center space-x-1">
       {hasChildren && (
-        <button
+        <Button
           className="text-xs w-4 h-4 flex items-center justify-center"
           onClick={() => toggleExpanded(data.file.fileId)}
         >
@@ -133,7 +134,7 @@ const FileWithToggle = ({
               isExpanded ? "rotate-90" : ""
             )}
           />
-        </button>
+        </Button>
       )}
       <FileCellRenderer
         file={data.file}
@@ -146,38 +147,37 @@ const FileWithToggle = ({
 };
 
 /** Main container */
-export const WorkspaceTableContainer = ({
-  workspaceId,
-  dataModelId,
-}: Props) => {
+export const WorkspaceTableContainer = ({ workspaceId }: Props) => {
+  // Data fetching
+  const { data: workspace } = useGetWorkspace(workspaceId);
+  const { data: model } = useGetDataModel(workspace?.dataModelId);
   const { data: rows } = useListWorkspaceRows(workspaceId);
-  const { data: model } = useGetDataModel(dataModelId);
+
+  // Local state
   const wrapCells = useWorkspaceTableSettings((s) => s.wrapCells);
   const openPreview = useWorkspacePreview((s) => s.openPreview);
   const mutationRemoveFile = useRemoveFileFromWorkspace(workspaceId);
 
+  // Derived state
   const dataRows = mapRowsToDataRows(rows || []);
   const { visibleRows, toggleExpanded, expandedRows, parentsWithChildren } =
     useExpandableRows(dataRows);
 
-  const parseColumnName = (name: string) =>
-    name.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-
-  const columnsRaw: Column<WorkspaceRowData>[] = Object.keys(
-    model?.schemaJson.properties || {}
-  ).map((key) => ({
-    field: key,
-    headerName: parseColumnName(key),
-    cellEditorParams: (params: ICellEditorParams<WorkspaceRowData>) => ({
-      value: isEvidence(params.value) ? params.value.answer : params.value,
-    }),
-    wrapText: wrapCells,
-    autoHeight: wrapCells,
-    cellRenderer: (params: CellParams<WorkspaceRowData>) => (
-      <EvidenceCell value={params.value} />
-    ),
-    editable: true,
-  }));
+  const columnsRaw: Column<WorkspaceRowData>[] = (model?.fields || []).map(
+    (field) => ({
+      field: field.id,
+      headerName: field.name,
+      cellEditorParams: (params: ICellEditorParams<WorkspaceRowData>) => ({
+        value: isEvidence(params.value) ? params.value.answer : params.value,
+      }),
+      wrapText: wrapCells,
+      autoHeight: wrapCells,
+      cellRenderer: (params: CellParams<WorkspaceRowData>) => (
+        <EvidenceCell value={params.value} />
+      ),
+      editable: true,
+    })
+  );
 
   const columns: Column<WorkspaceRowData>[] = [
     {

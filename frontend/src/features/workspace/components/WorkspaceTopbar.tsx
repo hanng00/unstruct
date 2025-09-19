@@ -10,10 +10,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { SlashIcon, Workflow } from "lucide-react";
 import Link from "next/link";
+import { useGetWorkspace, Workspace } from "../api/get-workspace";
 
-type Props = { workspaceName?: string };
+type Props = { workspaceId?: Workspace["id"] };
 
-export const WorkspaceTopbar = ({ workspaceName }: Props) => {
+export const WorkspaceTopbar = ({ workspaceId }: Props) => {
+  const { data: workspace } = useGetWorkspace(workspaceId);
+  if (!workspace) return null;
+  
   return (
     <div className="border-b p-4 flex items-center gap-3 justify-between">
       {/* Left breadcrumbs */}
@@ -28,7 +32,9 @@ export const WorkspaceTopbar = ({ workspaceName }: Props) => {
             <SlashIcon />
           </BreadcrumbSeparator>
           <BreadcrumbItem>
-            <span className="text-sm text-muted-foreground">{workspaceName || "Unnamed"}</span>
+            <span className="text-sm text-muted-foreground">
+              {workspace?.name || "Unnamed"}
+            </span>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>

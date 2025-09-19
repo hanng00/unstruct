@@ -1,8 +1,8 @@
 import { useCreateDataModel } from "@/features/data-model/api/create-data-model";
-import { useCreateWorkspace } from "@/features/workspace/api/create-workspace";
-import { z } from "zod";
-
-const emptySchema = z.object({});
+import {
+  useCreateWorkspace,
+  Workspace,
+} from "@/features/workspace/api/create-workspace";
 
 type Params = {
   name: string;
@@ -18,20 +18,26 @@ export const useCreateWorkspaceWithOptionalDataModel = () => {
     name,
     dataModelId,
     createEmptyIfMissing = true,
-  }: Params) => {
-    let dmId = dataModelId || null;
-    if (!dmId && createEmptyIfMissing) {
-      const model = await createDataModel.mutateAsync({
-        name: `${name} model`,
-        schemaJson: z.toJSONSchema(emptySchema),
-      });
-      dmId = model.id;
+  }: Params): Promise<Workspace> => {
+    if (dataModelId) {
+      return await createWorkspace.mutateAsync({ name, dataModelId });
     }
-    if (!dmId)
+
+    if (!createEmptyIfMissing) {
       throw new Error(
         "dataModelId is required or createEmptyIfMissing must be true"
       );
-    return await createWorkspace.mutateAsync({ name, dataModelId: dmId });
+    }
+
+    // Create empty data model and immediately create workspace with it
+    return await createDataModel
+      .mutateAsync({
+        name: `${name} model`,
+        fields: [],
+      })
+      .then((model) => model.id)
+      .then((dmId) => createWorkspace.mutateAsync({ name, dataModelId: dmId }))
+      .then((ws) => ws);
   };
 
   const isPending = createWorkspace.isPending || createDataModel.isPending;

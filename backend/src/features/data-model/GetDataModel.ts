@@ -1,6 +1,12 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import { withCors } from "../../utils/cors";
-import { unauthorized } from "../../utils/response";
+import {
+  badRequest,
+  forbidden,
+  internalServerError,
+  notFound,
+  success,
+  unauthorized,
+} from "../../utils/response";
 import { getUserFromEvent } from "../auth";
 import { DataModelRepository } from "./repositories/data-model-repository";
 
@@ -14,42 +20,17 @@ export const handler = async (
     if (!user) return unauthorized();
 
     const dataModelId = event.pathParameters?.id;
-    if (!dataModelId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Data model ID is required" }),
-        headers: withCors({ "Content-Type": "application/json" }),
-      };
-    }
+    if (!dataModelId) return badRequest("Data model ID is required");
 
     const dataModel = await repo.getDataModel(user.id, dataModelId);
-    if (!dataModel) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({ error: "Data model not found" }),
-        headers: withCors({ "Content-Type": "application/json" }),
-      };
-    }
+    if (!dataModel) return notFound("Data model not found");
 
     // Check if user owns the data model
-    if (dataModel.userId !== user.id) {
-      return {
-        statusCode: 403,
-        body: JSON.stringify({ error: "Access denied" }),
-        headers: withCors({ "Content-Type": "application/json" }),
-      };
-    }
+    if (dataModel.userId !== user.id)
+      return forbidden("You are not authorized to access this data model");
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ dataModel }),
-      headers: withCors({ "Content-Type": "application/json" }),
-    };
+    return success({ dataModel });
   } catch (e: any) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: e.message }),
-      headers: withCors({ "Content-Type": "application/json" }),
-    };
+    return internalServerError(e);
   }
 };

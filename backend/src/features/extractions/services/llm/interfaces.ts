@@ -1,8 +1,8 @@
-import { DataModel } from "@/features/data-model/models/data-model";
+import { JSONSchema7 } from "json-schema";
 
 export type StructuredExtractionArgs = {
   content: string;
-  schema: DataModel["schemaJson"]; // Serialized Zod schema
+  schema: JSONSchema7;
   pivotField?: string;
 };
 

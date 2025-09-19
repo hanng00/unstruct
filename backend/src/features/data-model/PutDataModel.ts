@@ -1,12 +1,19 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { z } from "zod";
-import { withCors } from "../../utils/cors";
-import { unauthorized } from "../../utils/response";
+import {
+  badRequest,
+  forbidden,
+  internalServerError,
+  notFound,
+  success,
+  unauthorized,
+} from "../../utils/response";
 import { getUserFromEvent } from "../auth";
+import { Field, FieldSchema } from "./models/field";
 import { DataModelRepository } from "./repositories/data-model-repository";
 
 const UpdateDataModelSchema = z.object({
-  schemaJson: z.unknown(),
+  fields: FieldSchema.array(), // Complete replace of existing fields
 });
 
 const repo = new DataModelRepository();
@@ -19,52 +26,35 @@ export const handler = async (
     if (!user) return unauthorized();
 
     const dataModelId = event.pathParameters?.id;
-    if (!dataModelId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Data model ID is required" }),
-        headers: withCors({ "Content-Type": "application/json" }),
-      };
-    }
+    if (!dataModelId) return badRequest("Data model ID is required");
 
     const body = JSON.parse(event.body || "{}");
     const input = UpdateDataModelSchema.parse(body);
 
     // Get existing data model
     const existingDataModel = await repo.getDataModel(user.id, dataModelId);
-    if (!existingDataModel) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({ error: "Data model not found" }),
-        headers: withCors({ "Content-Type": "application/json" }),
-      };
-    }
+    if (!existingDataModel) return notFound("Data model not found");
 
     // Check if user owns the data model
-    if (existingDataModel.userId !== user.id) {
-      return {
-        statusCode: 403,
-        body: JSON.stringify({ error: "Access denied" }),
-        headers: withCors({ "Content-Type": "application/json" }),
-      };
-    }
+    if (existingDataModel.userId !== user.id) return forbidden("Access denied");
+
+    // Validate the field id's are unique
+    if (!hasUniqueFieldIds(input.fields))
+      return badRequest("Field id's must be unique");
 
     // Update the data model
     const updatedDataModel = await repo.updateDataModel(user.id, dataModelId, {
-      schemaJson: input.schemaJson,
+      fields: input.fields,
       version: existingDataModel.version + 1,
     });
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ dataModel: updatedDataModel }),
-      headers: withCors({ "Content-Type": "application/json" }),
-    };
+    return success({ dataModel: updatedDataModel });
   } catch (e: any) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: e.message }),
-      headers: withCors({ "Content-Type": "application/json" }),
-    };
+    return internalServerError(e);
   }
+};
+
+const hasUniqueFieldIds = (fields: Field[]) => {
+  const uniqueFieldIds = new Set(fields.map((f) => f.id));
+  return uniqueFieldIds.size === fields.length;
 };

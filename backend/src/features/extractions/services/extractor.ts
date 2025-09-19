@@ -1,9 +1,11 @@
 import { IStorageService } from "@/clients/s3";
 import { DataModel } from "@/features/data-model/models/data-model";
 import { IDataModelRepository } from "@/features/data-model/repositories/data-model-repository";
+import { schemaDefinitionToJsonSchema } from "@/features/data-model/services/field-to-jsonschema";
 import { FileReference } from "@/features/files/models/file-reference";
 import { IFileRepository } from "@/features/files/repositories/file-repository";
 import { readFile } from "fs/promises";
+import { JSONSchema7 } from "json-schema";
 import path from "path";
 import { IContentLoader } from "../loaders/types";
 import { withEvidence } from "../models/evidence";
@@ -41,10 +43,17 @@ export class StructuredDataExtractor {
   ): Promise<Extraction["data"]> {
     const fileReference = await this.getFileReferenceOrThrow(userId, fileId);
     const dataModel = await this.getDataModelOrThrow(userId, dataModelId);
+
     const localPath = await this.downloadToTmp(fileReference);
     const content = await this.loadContent(localPath, fileReference.mimeType);
-    const schemaWithEvidence = withEvidence(dataModel.schemaJson);
-    const result = await this.callStructuredLLM(content, schemaWithEvidence, pivotField);
+
+    const jsonSchema = schemaDefinitionToJsonSchema(dataModel.fields);
+    const schemaWithEvidence = withEvidence(jsonSchema);
+    const result = await this.callStructuredLLM(
+      content,
+      schemaWithEvidence,
+      pivotField
+    );
     return result;
   }
 
@@ -101,10 +110,14 @@ export class StructuredDataExtractor {
 
   private async callStructuredLLM(
     content: string,
-    schema: DataModel["schemaJson"],
+    schema: JSONSchema7,
     pivotField?: string
   ): Promise<Extraction["data"]> {
-    console.log("Calling structured LLM", content, JSON.stringify(schema, null, 2));
+    console.log(
+      "Calling structured LLM",
+      content,
+      JSON.stringify(schema, null, 2)
+    );
     const result = await this.llm.structuredExtraction({
       content,
       schema,

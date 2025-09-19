@@ -1,10 +1,11 @@
 import { getAxios } from "@/hooks/use-axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { DataModelSchema, DataModelSchemaJsonSchema } from "../schemas/datamodel";
+import { DataModelSchema } from "../schemas/datamodel";
+import { FieldSchema } from "../schemas/field";
 
 const RequestSchema = z.object({
-  schemaJson: DataModelSchemaJsonSchema,
+  fields: FieldSchema.array(),
 });
 
 const ResponseSchema = z.object({

@@ -2,10 +2,12 @@ import { getAxios } from "@/hooks/use-axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { DataModelSchema } from "../schemas/datamodel";
+import { FieldSchema } from "../schemas/field";
 
 const RequestSchema = z.object({
   name: z.string().min(1),
-  schemaJson: z.unknown(),
+  description: z.string().optional(),
+  fields: FieldSchema.array(),
 });
 
 const ResponseSchema = z.object({

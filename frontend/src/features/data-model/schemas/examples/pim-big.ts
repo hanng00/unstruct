@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const FoxwayPackagingRecordSchema = z.object({
+export const PimBigSchema = z.object({
   // Identification
   productName: z
     .string()

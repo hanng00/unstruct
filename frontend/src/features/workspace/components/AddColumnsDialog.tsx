@@ -29,41 +29,42 @@ import {
 } from "@/components/ui/select";
 import { useGetDataModel } from "@/features/data-model/api/get-data-model";
 import { useUpdateDataModel } from "@/features/data-model/api/update-data-model";
-import { addFieldToDataModel } from "@/features/data-model/lib/add-field-to-datamodel";
+import { Field, FieldSchema } from "@/features/data-model/schemas/field";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as React from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
 type Props = {
-  dataModelId?: string;
+  dataModelId: string;
   children?: React.ReactNode;
 };
 
-export const AddColumnsDialog = ({ dataModelId, children }: Props) => {
-  const [open, setOpen] = React.useState(false);
+const formSchema = z.object({
+  name: z.string().trim().min(1, { message: "Column name is required" }),
+  description: z
+    .string()
+    .trim()
+    .min(1, { message: "Column description is required" }),
+  type: z.enum(["string", "number", "boolean"]),
+});
 
-  const { data: model } = useGetDataModel(dataModelId || "");
+export const AddColumnsDialog = ({ dataModelId, children }: Props) => {
+  const { data: dataModel } = useGetDataModel(dataModelId);
   const updateModel = useUpdateDataModel();
 
-  const toColumnId = (raw: string): string => {
-    return raw
+  const [open, setOpen] = useState(false);
+
+  const deriveFieldId = (name: string): string => {
+    return name
       .trim()
       .toLowerCase()
       .replace(/\s+/g, "_")
       .replace(/[^a-z0-9_]/g, "_")
       .replace(/^_+|_+$/g, "");
   };
-
-  const formSchema = z.object({
-    name: z.string().trim().min(1, { message: "Column name is required" }),
-    description: z
-      .string()
-      .trim()
-      .min(1, { message: "Column description is required" }),
-    type: z.enum(["string", "number", "boolean"]),
-  });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -75,31 +76,40 @@ export const AddColumnsDialog = ({ dataModelId, children }: Props) => {
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const columnId = toColumnId(values.name);
-    if (!dataModelId) {
-      toast.error("Select a data model first");
+    const fieldId = deriveFieldId(values.name);
+    if (!dataModelId) return toast.error("Select a data model first");
+    if (!dataModel) return toast.error("Data model not found");
+
+    // Check for duplicate field IDs
+    if (dataModel.fields.some(f => f.id === fieldId)) {
+      form.setError("name", {
+        type: "manual",
+        message: `A field with ID "${fieldId}" already exists. Please choose a different name.`
+      });
       return;
     }
 
-    if (!model?.schemaJson) throw new Error("Data model not found");
-
-    try {
-      const nextSchema = addFieldToDataModel(model.schemaJson, {
-        fieldId: columnId,
+    const newFields: Field[] = [
+      ...dataModel.fields,
+      FieldSchema.parse({
+        id: fieldId,
+        name: values.name,
         description: values.description,
         type: values.type,
-      });
+      }),
+    ];
 
+    try {
       await updateModel.mutateAsync({
         id: dataModelId,
-        schemaJson: nextSchema,
+        fields: newFields,
       });
-      toast.success(`Added column ${columnId}`);
+      toast.success(`Added field ${fieldId}`);
       setOpen(false);
       form.reset();
     } catch (error) {
       console.error(error);
-      toast.error("Failed to add column", {
+      toast.error("Failed to add field", {
         description: error instanceof Error ? error.message : "Unknown error",
       });
     }
@@ -121,18 +131,24 @@ export const AddColumnsDialog = ({ dataModelId, children }: Props) => {
             <FormField
               control={form.control}
               name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input id="col-name" placeholder="e.g. weight" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    Column id: {toColumnId(field.value || "") || "—"}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
+              render={({ field }) => {
+                const derivedId = field.value ? deriveFieldId(field.value) : "";
+                const isDuplicate = derivedId && dataModel?.fields.some(f => f.id === derivedId);
+                
+                return (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input id="col-name" placeholder="e.g. weight" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Field ID: <span className={isDuplicate ? "text-destructive" : ""}>{derivedId || "—"}</span>
+                      {isDuplicate && " (already exists)"}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
 
             <FormField

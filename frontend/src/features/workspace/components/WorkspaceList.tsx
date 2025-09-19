@@ -23,7 +23,7 @@ import { useListWorkspaces } from "../api/list-workspaces";
 export const WorkspaceList = () => {
   const { data: workspaces, isLoading, error } = useListWorkspaces();
   const [query, setQuery] = useState("");
-  const [sortAsc, setSortAsc] = useState(true);
+  const [sortAsc, setSortAsc] = useState(false);
 
   const filtered = useMemo(() => {
     const items = (workspaces || []).filter((w) =>
@@ -120,7 +120,7 @@ const WorkspaceRowItem = ({ id, name, createdAt, dataModelId }: RowProps) => {
   const { data: model, isLoading: modelLoading } = useGetDataModel(dataModelId);
 
   const docs = files?.length ?? 0;
-  const columns = Object.keys(model?.schemaJson.properties || {}).length;
+  const columns = Object.keys(model?.fields || {}).length;
 
   return (
     <TableRow>

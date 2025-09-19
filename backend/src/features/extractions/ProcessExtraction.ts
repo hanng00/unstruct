@@ -23,7 +23,7 @@ interface ExtractionItem {
 
 export const recordHandler = async (record: DynamoDBRecord): Promise<void> => {
   console.log("Processing record:", JSON.stringify(record, null, 2));
-  if (!_isValidRecord(record)) return;
+  if (!isValidRecord(record)) return;
 
   try {
     const item = unmarshall(
@@ -37,7 +37,7 @@ export const recordHandler = async (record: DynamoDBRecord): Promise<void> => {
   }
 };
 
-const _isValidRecord = (record: DynamoDBRecord): boolean => {
+const isValidRecord = (record: DynamoDBRecord): boolean => {
   // Record must be CREATED or MODIFIED, and the SK must be an EXTRACTION
   if (record.eventName !== "INSERT" && record.eventName !== "MODIFY") {
     console.log("Record is not a CREATED or MODIFIED event");
